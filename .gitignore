@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Environment / Secrets
+.env
+.env.*
+
+# HF Cache (3.5GB+)
+voicerag/data/hf_cache/
+data/hf_cache/
+.hf_cache/
+
+# Raw data (parquet files — download via build script)
+voicerag/data/raw/
+data/raw/
+
+# Built index (FAISS, BM25, SQLite, parquet — rebuild via build script)
+voicerag/data/index/
+data/index/
+
+# Any large binary files
+*.parquet
+*.faiss
+*.pkl
+*.bin
+*.gguf
+meta.db
+
+# Ollama models
+ollama/
+
+# IDE / Editor
+.dyad/
+.freebuff/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Split files (if you split for GitHub)
+*.part*
+reassemble.py

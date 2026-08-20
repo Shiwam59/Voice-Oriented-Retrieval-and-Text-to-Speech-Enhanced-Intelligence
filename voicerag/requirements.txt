@@ -1,0 +1,29 @@
+# Core
+pydantic>=2.0
+python-dotenv>=1.0
+
+# Data ingestion
+datasets>=2.14
+pandas>=2.0
+
+# Embeddings
+sentence-transformers>=2.2
+torch>=2.0
+faiss-cpu>=1.7
+
+# BM25
+rank-bm25>=0.2
+
+# Sarvam STT
+httpx>=0.25
+
+# API
+fastapi>=0.100
+uvicorn>=0.23
+
+# Eval
+numpy>=1.24
+matplotlib>=3.7
+
+# Dev
+pytest>=7.4

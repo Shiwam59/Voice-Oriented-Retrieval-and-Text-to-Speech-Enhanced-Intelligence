@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.git/
+.freebuff/
+*.md
+!voicerag/decisions.md
+data/hf_cache/
+.env
+.env.example
+build_index_fast.py

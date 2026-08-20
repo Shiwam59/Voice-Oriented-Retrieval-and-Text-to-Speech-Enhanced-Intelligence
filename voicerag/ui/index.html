@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceRAG — Voice-Enabled RAG</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --border: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --primary: #6366f1;
+            --primary-hover: #818cf8;
+            --success: #22c55e;
+            --warning: #eab308;
+            --danger: #ef4444;
+            --radius: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header p {
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        /* Server status banner */
+        .server-status {
+            text-align: center;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: none;
+        }
+        .server-status.offline {
+            display: block;
+            background: #991b1b;
+            color: #fecaca;
+            border: 1px solid var(--danger);
+        }
+        .server-status.online {
+            display: block;
+            background: #166534;
+            color: #bbf7d0;
+            border: 1px solid var(--success);
+        }
+
+        /* Input area */
+        .input-area {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .input-row textarea {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--text);
+            font-size: 1rem;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-row textarea:focus {
+            border-color: var(--primary);
+        }
+        .input-row textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-mic {
+            background: var(--danger);
+            color: white;
+            min-width: 120px;
+        }
+        .btn-mic:hover { background: #dc2626; }
+        .btn-mic.recording {
+            background: #991b1b;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            50% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+        }
+
+        .controls-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .lang-select {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            color: var(--text);
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        /* Results area */
+        .results {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            display: none;
+        }
+        .results.visible { display: block; }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .confidence-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .confidence-high { background: #166534; color: #bbf7d0; }
+        .confidence-medium { background: #854d0e; color: #fef08a; }
+        .confidence-low { background: #991b1b; color: #fecaca; }
+        .confidence-refused { background: #1e293b; color: #f87171; border: 1px solid var(--danger); }
+
+        /* Transcript display */
+        .transcript-section {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        .transcript-section.visible { display: block; }
+        .transcript-label {
+            font-size: 0.75rem;
+            color: var(--primary);
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .transcript-text {
+            font-size: 0.95rem;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .answer-text {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+        .answer-content {
+            flex: 1;
+        }
+        .btn-speak {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            font-size: 1rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .btn-speak:hover { background: var(--primary-hover); }
+        .btn-speak.speaking {
+            background: var(--success);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .citations {
+            margin-bottom: 1.5rem;
+        }
+        .citations h3 {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+        .citation-item {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        .citation-id {
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        /* Latency breakdown */
+        .latency {
+            border-top: 1px solid var(--border);
+            padding-top: 1rem;
+        }
+        .latency h3 {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+        .latency-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+        .latency-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .latency-label {
+            width: 100px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: right;
+        }
+        .latency-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--bg);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .latency-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        .latency-value {
+            width: 70px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+        .loading.visible { display: block; }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Stats panel */
+        .stats-panel {
+            margin-top: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+        }
+        .stats-panel h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+        }
+        .stat-card {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            font-variant-numeric: tabular-nums;
+        }
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>VoiceRAG</h1>
+            <p>Voice-enabled RAG - Ask in English or Hindi, get answers in the same language</p>
+        </div>
+
+        <div class="server-status" id="serverStatus"></div>
+
+        <div class="input-area">
+            <div class="input-row">
+                <textarea id="queryInput" rows="2" placeholder="Type in English or Hindi... (Apna sawal yahan likhen)" autofocus></textarea>
+                <button class="btn btn-primary" id="sendBtn" onclick="sendTextQuery()">
+                    Ask ->
+                </button>
+            </div>
+            <div class="controls-row">
+                <button class="btn btn-mic" id="micBtn" onclick="toggleMic()">
+                    Record
+                </button>
+                <div>
+                    <label style="color: var(--text-muted); font-size: 0.85rem; margin-right: 0.5rem;">Language:</label>
+                    <select class="lang-select" id="langSelect">
+                        <option value="auto" selected>Auto-detect</option>
+                        <option value="hi">Hindi</option>
+                        <option value="en">English</option>
+                        <option value="ur">Urdu</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing query...</p>
+        </div>
+
+        <div class="results" id="results">
+            <div class="transcript-section" id="transcriptSection">
+                <div class="transcript-label">Transcribed from audio</div>
+                <div class="transcript-text" id="transcriptText"></div>
+            </div>
+            <div class="result-header">
+                <span class="confidence-badge" id="confidenceBadge">-</span>
+                <span id="extractiveTag" style="font-size: 0.8rem; color: var(--text-muted); display: none;">
+                    Extractive answer
+                </span>
+            </div>
+            <div class="answer-text" id="answerText">
+                <div class="answer-content" id="answerContent"></div>
+                <button class="btn-speak" id="speakBtn" onclick="toggleSpeak()" title="Listen to answer">🔊</button>
+            </div>
+            <div class="citations" id="citationsSection">
+                <h3>Citations</h3>
+                <div id="citationsList"></div>
+            </div>
+            <div class="latency">
+                <h3>Latency Breakdown</h3>
+                <div class="latency-bars" id="latencyBars"></div>
+            </div>
+        </div>
+
+        <div class="stats-panel">
+            <h2>Pipeline Stats</h2>
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statP50">-</div>
+                    <div class="stat-label">P50 (post-STT)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statP70">-</div>
+                    <div class="stat-label">P70 (post-STT)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statP100">-</div>
+                    <div class="stat-label">P100 (post-STT)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statRuns">-</div>
+                    <div class="stat-label">Total Queries</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Detect API base: if served from the API server, use its origin.
+        // If opened as a file or on a different origin, fall back to localhost.
+        function getApiBase() {
+            const loc = window.location;
+            if (loc.protocol === 'http:' || loc.protocol === 'https:') {
+                return loc.origin;
+            }
+            return 'http://localhost:8000';
+        }
+        const API_BASE = getApiBase();
+        const FETCH_TIMEOUT_MS = 60000; // 60s — first query loads ML model
+
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let recordingMimeType = '';
+        let isRecording = false;
+        let autoSpeak = true; // Auto-speak answers by default
+
+        // ── Text-to-Speech ───────────────────────────────────────
+        function speakText(text) {
+            if (!text || !window.speechSynthesis) return;
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
+
+            var utterance = new SpeechSynthesisUtterance(text);
+
+            // Detect language for TTS voice selection
+            var devanagari = (text.match(/[\u0900-\u097F]/g) || []).length;
+            var arabic = (text.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/g) || []).length;
+            var total = (text.match(/\w/g) || []).length || 1;
+            if (devanagari / total > 0.3) {
+                utterance.lang = 'hi-IN';
+            } else if (arabic / total > 0.3) {
+                utterance.lang = 'ur-PK';
+            } else {
+                utterance.lang = 'en-US';
+            }
+
+            utterance.rate = 0.95;
+            utterance.pitch = 1.0;
+
+            var btn = document.getElementById('speakBtn');
+            btn.classList.add('speaking');
+            btn.textContent = '⏹';
+
+            utterance.onend = function() {
+                btn.classList.remove('speaking');
+                btn.textContent = '🔊';
+            };
+            utterance.onerror = function() {
+                btn.classList.remove('speaking');
+                btn.textContent = '🔊';
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function stopSpeaking() {
+            window.speechSynthesis.cancel();
+            var btn = document.getElementById('speakBtn');
+            btn.classList.remove('speaking');
+            btn.textContent = '🔊';
+        }
+
+        function toggleSpeak() {
+            if (window.speechSynthesis.speaking) {
+                stopSpeaking();
+            } else {
+                var answer = document.getElementById('answerContent').textContent;
+                if (answer) speakText(answer);
+            }
+        }
+
+        // ── Connection check on load ──────────────────────────────
+        async function checkServer() {
+            const el = document.getElementById('serverStatus');
+            try {
+                const ctrl = new AbortController();
+                const tid = setTimeout(() => ctrl.abort(), 3000);
+                const resp = await fetch(`${API_BASE}/health`, { signal: ctrl.signal });
+                clearTimeout(tid);
+                if (resp.ok) {
+                    el.className = 'server-status online';
+                    el.textContent = 'Server connected at ' + API_BASE;
+                    setTimeout(() => { el.style.display = 'none'; }, 3000);
+                } else {
+                    throw new Error('bad status');
+                }
+            } catch (e) {
+                el.className = 'server-status offline';
+                el.innerHTML = 'Cannot reach the API server at <b>' + API_BASE + '</b>. '
+                    + 'Make sure you started the server with: <code>python run.py</code> '
+                    + 'and are opening <b>http://localhost:8000</b> in your browser '
+                    + '(not the HTML file directly).';
+            }
+        }
+        checkServer();
+
+        // ── Fetch with timeout ────────────────────────────────────
+        async function fetchWithTimeout(url, options, timeoutMs) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const resp = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(timer);
+                return resp;
+            } catch (e) {
+                clearTimeout(timer);
+                if (e.name === 'AbortError') {
+                    throw new Error('Server timed out after ' + (timeoutMs / 1000) + 's. The first query loads the ML model — try again.');
+                }
+                throw e;
+            }
+        }
+
+        async function sendTextQuery() {
+            const query = document.getElementById('queryInput').value.trim();
+            if (!query) return;
+            const lang = document.getElementById('langSelect').value;
+            await runQuery({ query, language: lang });
+        }
+
+        async function toggleMic() {
+            const btn = document.getElementById('micBtn');
+            if (isRecording) {
+                stopRecording();
+                return;
+            }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // MediaRecorder does not produce WAV by default. Re-labeling
+                // WebM/Opus bytes as WAV makes Sarvam reject the upload.
+                const mimeCandidates = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/ogg;codecs=opus',
+                    'audio/ogg'
+                ];
+                const supportedMime = mimeCandidates.find(
+                    (mime) => MediaRecorder.isTypeSupported(mime)
+                );
+                mediaRecorder = supportedMime
+                    ? new MediaRecorder(stream, { mimeType: supportedMime })
+                    : new MediaRecorder(stream);
+                recordingMimeType = mediaRecorder.mimeType || supportedMime || 'audio/webm';
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) audioChunks.push(e.data);
+                };
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(audioChunks, { type: recordingMimeType });
+                    const lang = document.getElementById('langSelect').value;
+                    const extension = recordingMimeType.includes('ogg') ? 'ogg' : 'webm';
+                    const audioFile = new File([blob], `recording.${extension}`, {
+                        type: recordingMimeType
+                    });
+                    if (audioFile.size === 0) {
+                        alert('No audio was recorded. Please try again.');
+                    } else {
+                        await runQuery({ audio: audioFile, language: lang }, true);
+                    }
+                    stream.getTracks().forEach(t => t.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                btn.textContent = 'Stop';
+                btn.classList.add('recording');
+            } catch (err) {
+                alert('Microphone access denied: ' + err.message);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                const btn = document.getElementById('micBtn');
+                btn.textContent = 'Record';
+                btn.classList.remove('recording');
+            }
+        }
+
+        async function runQuery(params, isAudio = false) {
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            loading.classList.add('visible');
+            results.classList.remove('visible');
+
+            try {
+                let resp;
+                if (isAudio) {
+                    const formData = new FormData();
+                    formData.append(
+                        'audio',
+                        params.audio,
+                        params.audio.name || 'recording.webm'
+                    );
+                    formData.append('language', params.language);
+                    resp = await fetchWithTimeout(
+                        `${API_BASE}/query/audio`,
+                        { method: 'POST', body: formData },
+                        FETCH_TIMEOUT_MS
+                    );
+                } else {
+                    resp = await fetchWithTimeout(
+                        `${API_BASE}/query`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(params),
+                        },
+                        FETCH_TIMEOUT_MS
+                    );
+                }
+
+                if (!resp.ok) {
+                    let errMsg = 'Request failed (HTTP ' + resp.status + ')';
+                    try {
+                        const errData = await resp.json();
+                        if (errData.detail) errMsg = errData.detail;
+                    } catch (_) {}
+                    throw new Error(errMsg);
+                }
+
+                const data = await resp.json();
+                if (data.error && !data.answer && !data.transcript) {
+                    throw new Error(data.error);
+                }
+                displayResults(data);
+            } catch (err) {
+                if (results) results.classList.add('visible');
+                let message = err.message || 'Unknown request error';
+                if (message === 'Failed to fetch' || message.includes('NetworkError')) {
+                    message = 'Cannot reach the server at ' + API_BASE
+                        + '. Make sure the server is running (python run.py) '
+                        + 'and you opened http://localhost:8000 in your browser.';
+                }
+                // The visible text node is answerContent; keep a fallback for
+                // older cached pages and never throw a second DOM error.
+                const errorTarget = document.getElementById('answerContent')
+                    || document.getElementById('answerText');
+                if (errorTarget) errorTarget.textContent = 'Error: ' + message;
+                const errorBadge = document.getElementById('confidenceBadge');
+                if (errorBadge) {
+                    errorBadge.textContent = 'Error';
+                    errorBadge.className = 'confidence-badge confidence-refused';
+                }
+            } finally {
+                loading.classList.remove('visible');
+            }
+        }
+
+        function displayResults(data) {
+            const results = document.getElementById('results');
+            results.classList.add('visible');
+
+            // Transcript (shown when audio was transcribed)
+            const transcriptSection = document.getElementById('transcriptSection');
+            const transcriptText = document.getElementById('transcriptText');
+            if (data.transcript) {
+                transcriptSection.classList.add('visible');
+                transcriptText.textContent = data.transcript;
+                // Also populate the textarea so user can see/edit what was heard
+                document.getElementById('queryInput').value = data.transcript;
+            } else {
+                transcriptSection.classList.remove('visible');
+            }
+
+            // Confidence badge
+            const badge = document.getElementById('confidenceBadge');
+            if (data.refused) {
+                badge.textContent = 'Refused: ' + (data.refusal_reason || 'unknown');
+                badge.className = 'confidence-badge confidence-refused';
+            } else if (data.confidence >= 0.7) {
+                badge.textContent = 'Confidence: ' + (data.confidence * 100).toFixed(0) + '%';
+                badge.className = 'confidence-badge confidence-high';
+            } else if (data.confidence >= 0.4) {
+                badge.textContent = 'Confidence: ' + (data.confidence * 100).toFixed(0) + '%';
+                badge.className = 'confidence-badge confidence-medium';
+            } else {
+                badge.textContent = 'Confidence: ' + (data.confidence * 100).toFixed(0) + '%';
+                badge.className = 'confidence-badge confidence-low';
+            }
+
+            // Extractive tag
+            const extTag = document.getElementById('extractiveTag');
+            extTag.style.display = data.extractive ? 'inline' : 'none';
+
+            // Answer
+            document.getElementById('answerContent').textContent = data.answer;
+
+            // Auto-speak the answer if enabled
+            if (autoSpeak && data.answer && !data.refused) {
+                setTimeout(function() { speakText(data.answer); }, 300);
+            }
+
+            // Citations
+            const citSection = document.getElementById('citationsSection');
+            const citList = document.getElementById('citationsList');
+            if (data.citations && data.citations.length > 0) {
+                citSection.style.display = 'block';
+                citList.innerHTML = data.citations.map(function(c) {
+                    return '<div class="citation-item"><span class="citation-id">' + c + '</span></div>';
+                }).join('');
+            } else {
+                citSection.style.display = 'none';
+            }
+
+            // Latency
+            if (data.latency_breakdown) {
+                renderLatency(data.latency_breakdown);
+            }
+
+            // Refresh stats
+            fetchStats();
+        }
+
+        function renderLatency(lb) {
+            var container = document.getElementById('latencyBars');
+            var stages = [
+                { label: 'STT', value: lb.stt_ms, color: '#6366f1' },
+                { label: 'Normalize', value: lb.normalize_ms, color: '#8b5cf6' },
+                { label: 'Retrieve', value: lb.retrieve_ms, color: '#a78bfa' },
+                { label: 'Rerank', value: lb.rerank_ms, color: '#c084fc' },
+                { label: 'Guardrail', value: lb.guardrail_ms, color: '#e879f9' },
+                { label: 'Generate', value: lb.generate_ms, color: '#f472b6' },
+                { label: 'Postproc', value: lb.postprocess_ms, color: '#fb7185' },
+                { label: 'TOTAL', value: lb.total_post_stt_ms, color: '#22c55e' },
+            ];
+
+            var maxVal = 1;
+            stages.forEach(function(s) {
+                if (s.value != null && s.value > maxVal) maxVal = s.value;
+            });
+
+            container.innerHTML = stages.map(function(s) {
+                if (s.value == null) return '';
+                var pct = Math.min((s.value / maxVal) * 100, 100);
+                var isBold = s.label === 'TOTAL';
+                return '<div class="latency-row">'
+                    + '<span class="latency-label" ' + (isBold ? 'style="font-weight:700;color:var(--text)"' : '') + '>' + s.label + '</span>'
+                    + '<div class="latency-bar">'
+                    + '<div class="latency-fill" style="width:' + pct + '%;background:' + s.color + '"></div>'
+                    + '</div>'
+                    + '<span class="latency-value" ' + (isBold ? 'style="color:var(--success)"' : '') + '>' + s.value.toFixed(1) + 'ms</span>'
+                    + '</div>';
+            }).join('');
+        }
+
+        async function fetchStats() {
+            try {
+                const ctrl = new AbortController();
+                setTimeout(() => ctrl.abort(), 3000);
+                const resp = await fetch(API_BASE + '/stats', { signal: ctrl.signal });
+                const data = await resp.json();
+                if (data.post_stt) {
+                    document.getElementById('statP50').textContent = data.post_stt.p50_ms + 'ms';
+                    document.getElementById('statP70').textContent = data.post_stt.p70_ms + 'ms';
+                    document.getElementById('statP100').textContent = data.post_stt.p100_ms + 'ms';
+                    document.getElementById('statRuns').textContent = data.total_runs;
+                }
+            } catch (e) { /* stats endpoint may not be ready */ }
+        }
+
+        // Enter key to send
+        document.getElementById('queryInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendTextQuery();
+            }
+        });
+
+        // Initial stats fetch
+        fetchStats();
+    </script>
+</body>
+</html>
