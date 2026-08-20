@@ -61,12 +61,16 @@ def _get_retriever():
     global _retriever
     if _retriever is None:
         import logging
-        from voicerag.harness.retriever import HybridRetriever
         index_dir = os.environ.get("VECTOR_DB_PATH", "./data/index")
         abs_index = os.path.abspath(index_dir)
         logging.warning("[retriever] Loading index from: %s (abs=%s)", index_dir, abs_index)
-        _retriever = HybridRetriever(index_dir)
-        logging.warning("[retriever] Loaded %d vectors", _retriever.faiss_index.ntotal)
+        try:
+            from voicerag.harness.retriever import HybridRetriever
+            _retriever = HybridRetriever(index_dir)
+            logging.warning("[retriever] Loaded %d vectors", _retriever.faiss_index.ntotal)
+        except Exception as e:
+            logging.error("[retriever] Failed to load index: %s", e)
+            return None
     return _retriever
 
 
@@ -120,8 +124,13 @@ async def query_text(req: TextQueryRequest):
         session_id=req.session_id,
     )
 
+    retriever = _get_retriever()
+    if retriever is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Index not ready yet. Wait 1-2 minutes for first-time setup.",
+        )
     try:
-        retriever = _get_retriever()
         response = run_pipeline(request, retriever, top_k=req.top_k)
     except Exception as e:
         logger.exception("Pipeline error")
@@ -164,8 +173,13 @@ async def query_audio(
         session_id=session_id,
     )
 
+    retriever = _get_retriever()
+    if retriever is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Index not ready yet. Wait 1-2 minutes for first-time setup.",
+        )
     try:
-        retriever = _get_retriever()
         response = run_pipeline(request, retriever, top_k=top_k)
     except Exception as e:
         logger.exception("Pipeline error")

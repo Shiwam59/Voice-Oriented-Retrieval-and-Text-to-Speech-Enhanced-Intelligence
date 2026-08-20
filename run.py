@@ -37,16 +37,33 @@ def _ensure_index():
     """Build FAISS + BM25 index on first startup if not present."""
     index_dir = Path(os.environ["VECTOR_DB_PATH"])
     if (index_dir / "faiss_hnsw.index").exists():
+        print(f"[setup] Index found at {index_dir}")
         return  # Already built
     print("[setup] Index not found — building from dataset...")
     print("[setup] This happens once on first run (~2 minutes).")
     try:
+        os.makedirs(index_dir, exist_ok=True)
+        # Download dataset first
+        raw_dir = _VOICERAG_DIR / "data" / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        parquet_path = raw_dir / "msmarco_xi_hi.parquet"
+        if not parquet_path.exists():
+            print("[setup] Downloading MSMARCO-XI Hindi dataset...")
+            from huggingface_hub import hf_hub_download
+            hf_hub_download(
+                repo_id="ai4bharat/MSMARCO-XI",
+                filename="train/hintrain.parquet",
+                repo_type="dataset",
+                local_dir=str(raw_dir),
+                local_dir_use_symlinks=False,
+            )
+            print("[setup] Dataset downloaded!")
         from voicerag.ingest.build_index import build_index
         build_index()
         print("[setup] ✅ Index built successfully!")
     except Exception as e:
         print(f"[setup] ⚠️  Auto-build failed: {e}")
-        print("[setup] Run 'python -m voicerag.ingest.build_index' manually.")
+        print("[setup] Server will start but retrieval may not work.")
 
 
 # ── Load .env from voicerag/ directory ─────────────────────────────
