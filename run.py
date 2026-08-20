@@ -31,6 +31,31 @@ if _model_cache.exists():
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
+
+# ── Auto-build index if missing ───────────────────────────────────
+def _ensure_index():
+    """Build FAISS + BM25 index on first startup if not present."""
+    index_dir = Path(os.environ["VECTOR_DB_PATH"])
+    if (index_dir / "faiss_hnsw.index").exists():
+        return  # Already built
+    print("[setup] Index not found — building from dataset...")
+    print("[setup] This happens once on first run (~2 minutes).")
+    try:
+        from voicerag.ingest.build_index import build_index
+        build_index()
+        print("[setup] ✅ Index built successfully!")
+    except Exception as e:
+        print(f"[setup] ⚠️  Auto-build failed: {e}")
+        print("[setup] Run 'python -m voicerag.ingest.build_index' manually.")
+
+
+# ── Load .env from voicerag/ directory ─────────────────────────────
+try:
+    from dotenv import load_dotenv
+    load_dotenv(_VOICERAG_DIR / ".env")
+except ImportError:
+    pass
+
 import uvicorn  # noqa: E402
 
 if __name__ == "__main__":
@@ -40,6 +65,7 @@ if __name__ == "__main__":
         if idx + 1 < len(sys.argv):
             port = int(sys.argv[idx + 1])
 
+    _ensure_index()
     print(f"Starting VoiceRAG API on http://localhost:{port}")
     print(f"Open http://localhost:{port} in your browser")
     uvicorn.run(

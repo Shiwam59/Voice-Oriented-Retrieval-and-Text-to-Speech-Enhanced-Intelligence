@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system deps for faiss-cpu and build tools
+# Install system deps for faiss-cpu
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
@@ -12,25 +12,25 @@ COPY voicerag/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download the SentenceTransformer model at build time
-# so it doesn't need network at runtime
 RUN python -c "\
-import os; os.environ['HF_HOME']='/app/voicerag/data/hf_cache'; \
+import os; os.environ['HF_HOME='/app/voicerag/data/hf_cache']; \
 from sentence_transformers import SentenceTransformer; \
 SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2'); \
 print('Model downloaded successfully')"
 
-# Copy the application code and data
+# Copy the application code
 COPY voicerag/ voicerag/
+COPY run.py .
 
-# Set offline mode so sentence_transformers doesn't try to reach network
-ENV HF_HUB_OFFLINE=1
-ENV TRANSFORMERS_OFFLINE=1
+# Create directories for data (will be built on first start)
+RUN mkdir -p voicerag/data/index voicerag/data/raw voicerag/data/hf_cache
+
+# Set environment
 ENV HF_HOME=/app/voicerag/data/hf_cache
 ENV VECTOR_DB_PATH=/app/voicerag/data/index
 ENV PYTHONUNBUFFERED=1
 
-WORKDIR /app/voicerag
-
 EXPOSE 8000
 
-CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Auto-build index on first start, then run server
+CMD ["sh", "-c", "python run.py"]

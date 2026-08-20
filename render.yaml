@@ -1,0 +1,31 @@
+# Render.com deployment config
+# Free tier: 512MB RAM, shared CPU, spins down after inactivity
+services:
+  - type: web
+    name: voicerag
+    runtime: python
+    buildCommand: pip install -r voicerag/requirements.txt
+    startCommand: python run.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13"
+      - key: VECTOR_DB_PATH
+        value: "/opt/render/project/src/voicerag/data/index"
+      - key: HF_HOME
+        value: "/opt/render/project/src/voicerag/data/hf_cache"
+      - key: LLM_BASE_URL
+        sync: false
+        value: "https://api.groq.com/openai/v1/chat/completions"
+      - key: LLM_MODEL
+        sync: false
+        value: "allam-2-7b"
+      - key: LLM_API_KEY
+        sync: false
+        # Set this in Render dashboard → Environment
+        # Get free key at: https://console.groq.com
+      - key: SARVAM_API_KEY
+        sync: false
+        # Set this in Render dashboard → Environment
+        # Get free key at: https://dashboard.sarvam.ai
+    healthCheckPath: /health
+    autoDeploy: true
