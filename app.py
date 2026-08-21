@@ -1,4 +1,4 @@
-"""VoiceRAG — Gradio 3.x app for HuggingFace Spaces"""
+"""VoiceRAG — Gradio app with ZeroGPU support"""
 
 import os
 import sys
@@ -10,8 +10,10 @@ os.environ["VECTOR_DB_PATH"] = str(_PKG_ROOT / "data" / "index")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import gradio as gr
+import spaces
 
 
+@spaces.GPU
 def answer(query):
     if not query:
         return "Please type a question."
@@ -51,4 +53,4 @@ def answer(query):
 
 
 demo = gr.Interface(fn=answer, inputs="text", outputs="text", title="VoiceRAG")
-demo.launch(server_name='0.0.0.0')
+demo.launch(server_name="0.0.0.0")
