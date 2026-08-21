@@ -51,4 +51,4 @@ def answer(query):
 
 
 demo = gr.Interface(fn=answer, inputs="text", outputs="text", title="VoiceRAG")
-demo.launch()
+demo.launch(server_name='0.0.0.0')
